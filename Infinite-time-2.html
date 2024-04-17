@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chase Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #000;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div class="button-container" id="buttonContainer">
+        <button class="button" id="startButton">Start Game</button>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const canvas = document.getElementById("gameCanvas");
+            const ctx = canvas.getContext("2d");
+            const playerRadius = 10; // Radius instead of size
+            let playerSpeed = 5;
+            let score = 0;
+            let time = 120; // Time limit in seconds (2 minutes)
+            let gameRunning = false;
+            let gameStarted = false;
+            let gameEnded = false;
+
+            // Player positions
+            let playerX = canvas.width / 2;
+            let playerY = canvas.height / 2;
+
+            // Evil player positions
+            let evilPlayerX = Math.random() * canvas.width;
+            let evilPlayerY = Math.random() * canvas.height;
+
+            // Star block positions
+            let starBlockX = 0;
+            let starBlockY = 0;
+            let starBlockExists = false;
+
+            // Black block positions
+            let blackBlockX = 0;
+            let blackBlockY = 0;
+            let blackBlockExists = false;
+
+            // Movement speed
+            let evilPlayerSpeed = 1; // Slower initial speed
+
+            // Keys state
+            const keys = {};
+
+            // Event listeners for keyboard controls
+            document.addEventListener("keydown", function(event) {
+                keys[event.key] = true;
+            });
+
+            document.addEventListener("keyup", function(event) {
+                keys[event.key] = false;
+            });
+
+            // Event listener for canvas click to reset the game
+            canvas.addEventListener("click", function(event) {
+                if (gameEnded) {
+                    resetGame();
+                } else if (!gameStarted) {
+                    startGame();
+                }
+            });
+
+            // Start button click event listener
+            document.getElementById("startButton").addEventListener("click", function() {
+                startGame();
+            });
+
+            // Main game loop
+            function gameLoop() {
+                if (gameRunning) {
+                    update();
+                    draw();
+                    requestAnimationFrame(gameLoop);
+                } else if (gameEnded) {
+                    // Game over
+                    ctx.fillStyle = "black";
+                    ctx.font = "30px Arial";
+                    ctx.fillText("Game Over", canvas.width / 2 - 80, canvas.height / 2);
+                    ctx.fillText("Score: " + score, canvas.width / 2 - 60, canvas.height / 2 + 40);
+                    ctx.fillText("Click to retry", canvas.width / 2 - 90, canvas.height / 2 + 80);
+                }
+            }
+
+            // Function to update game state
+            function update() {
+                // Time countdown
+                time -= 1 / 60; // Decrease time by 1 second per 60 frames
+                if (time <= 0) {
+                    endGame();
+                    return;
+                }
+
+                // Player movement
+                if ((keys["w"] || keys["ArrowUp"]) && playerY > 0) playerY -= playerSpeed;
+                if ((keys["a"] || keys["ArrowLeft"]) && playerX > 0) playerX -= playerSpeed;
+                if ((keys["s"] || keys["ArrowDown"]) && playerY < canvas.height) playerY += playerSpeed;
+                if ((keys["d"] || keys["ArrowRight"]) && playerX < canvas.width) playerX += playerSpeed;
+
+                // Player and evil player collision detection
+                if (Math.sqrt(Math.pow(playerX - evilPlayerX, 2) + Math.pow(playerY - evilPlayerY, 2)) < 2 * playerRadius) {
+                    endGame();
+                    return;
+                }
+
+                // Star block interaction
+                if (starBlockExists && Math.sqrt(Math.pow(playerX - starBlockX, 2) + Math.pow(playerY - starBlockY, 2)) < 2 * playerRadius) {
+                    playerSpeed = 10; // Increase player speed
+                    starBlockExists = false; // Remove star block
+                    score++; // Increase score
+                    evilPlayerSpeed += 0.5; // Increase evil player speed
+                }
+
+                // Black block interaction
+                if (blackBlockExists && Math.sqrt(Math.pow(evilPlayerX - blackBlockX, 2) + Math.pow(evilPlayerY - blackBlockY, 2)) < 2 * playerRadius) {
+                    evilPlayerSpeed = 5; // Reset evil player speed
+                    blackBlockExists = false; // Remove black block
+                }
+
+                // Evil player movement (chase player or black block)
+                if (blackBlockExists) {
+                    if (evilPlayerX < blackBlockX) evilPlayerX += evilPlayerSpeed;
+                    else if (evilPlayerX > blackBlockX) evilPlayerX -= evilPlayerSpeed;
+                    if (evilPlayerY < blackBlockY) evilPlayerY += evilPlayerSpeed;
+                    else if (evilPlayerY > blackBlockY) evilPlayerY -= evilPlayerSpeed;
+                } else {
+                    if (evilPlayerX < playerX) evilPlayerX += evilPlayerSpeed;
+                    else if (evilPlayerX > playerX) evilPlayerX -= evilPlayerSpeed;
+                    if (evilPlayerY < playerY) evilPlayerY += evilPlayerSpeed;
+                    else if (evilPlayerY > playerY) evilPlayerY -= evilPlayerSpeed;
+                }
+
+                // Spawn star block randomly
+                if (!starBlockExists && Math.random() < 0.01) {
+                    starBlockX = Math.random() * canvas.width;
+                    starBlockY = Math.random() * canvas.height;
+                    starBlockExists = true;
+                }
+
+                // Spawn black block more commonly
+                if (!blackBlockExists && Math.random() < 0.02) { // Increased probability
+                    blackBlockX = Math.random() * canvas.width;
+                    blackBlockY = Math.random() * canvas.height;
+                    blackBlockExists = true;
+                }
+            }
+
+            // Function to draw game objects
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw player
+                ctx.fillStyle = "green";
+                ctx.beginPath();
+                ctx.arc(playerX, playerY, playerRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw evil player
+                ctx.fillStyle = "red";
+                ctx.beginPath();
+                ctx.arc(evilPlayerX, evilPlayerY, playerRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw star block
+                if (starBlockExists) {
+                    ctx.fillStyle = "yellow";
+                    ctx.beginPath();
+                    ctx.arc(starBlockX, starBlockY, playerRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw black block
+                if (blackBlockExists) {
+                    ctx.fillStyle = "black";
+                    ctx.beginPath();
+                    ctx.arc(blackBlockX, blackBlockY, playerRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw score and time
+                ctx.fillStyle = "black";
+                ctx.font = "16px Arial";
+                ctx.fillText("Score: " + score, 10, 20);
+                ctx.fillText("Time: " + Math.ceil(time), canvas.width - 80, 20);
+            }
+
+            // Function to start the game
+            function startGame() {
+                gameStarted = true;
+                gameRunning = true;
+                document.getElementById("buttonContainer").style.display = "none";
+                gameLoop();
+            }
+
+            // Function to end the game
+            function endGame() {
+                gameRunning = false;
+                gameEnded = true;
+                playerSpeed = 0;
+                evilPlayerSpeed = 0;
+                time = 0;
+                draw();
+                document.getElementById("buttonContainer").style.display = "block";
+            }
+
+            // Function to reset the game
+            function resetGame() {
+                gameStarted = false;
+                gameEnded = false;
+                score = 0;
+                time = 120;
+                playerX = canvas.width / 2;
+                playerY = canvas.height / 2;
+                playerSpeed = 5;
+                evilPlayerX = Math.random() * canvas.width;
+                evilPlayerY = Math.random() * canvas.height;
+                starBlockExists = false;
+                blackBlockExists = false;
+                document.getElementById("buttonContainer").style.display = "none";
+                gameLoop();
+            }
+        });
+    </script>
+</body>
+</html>
